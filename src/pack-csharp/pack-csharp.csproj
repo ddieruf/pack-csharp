@@ -6,11 +6,11 @@
         <PackageVersion>0.1.0</PackageVersion>
         <Authors>Kisasa</Authors>
         <Title>Pack-Csharp</Title>
-        <Description>A cloud native buildpacks C# library for interacting with the pack cli.</Description>
-        <PackageProjectUrl>https://github.com/kisasa/pack-csharp</PackageProjectUrl>
+        <Description>A cloud native buildpacks C# library for interacting with the pack cli v0.19.0.</Description>
+        <PackageProjectUrl>https://github.com/ddieruf/pack-csharp</PackageProjectUrl>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageTags>cnbp;cloud-native-buildpacks;pack-cli</PackageTags>
-        <RepositoryUrl>https://github.com/kisasa/pack-csharp.git</RepositoryUrl>
+        <RepositoryUrl>https://github.com/ddieruf/pack-csharp.git</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
         <RepositoryBranch>main</RepositoryBranch>
         <IncludeContentInPack>True</IncludeContentInPack>

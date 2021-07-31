@@ -1,5 +1,5 @@
 # pack-csharp
-A .NET (c#) wrapper library for the [Cloud Native Buildpacks](https://buildpacks.io/) pack cli.
+A .NET (c#) wrapper library for the [Cloud Native Buildpacks](https://buildpacks.io/) pack cli v0.19.0.
 
 ## Whats going on
 
