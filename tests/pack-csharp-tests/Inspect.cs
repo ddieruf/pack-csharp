@@ -1,17 +1,16 @@
 ﻿using System.Threading;
 using FluentAssertions;
-using Microsoft.Extensions.Logging;
 using pack_csharp;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace pack_csharp_tests
 {
-  public class ImageInspection
+  public class Inspect
   {
     private readonly ITestOutputHelper _outputHelper;
 
-    public ImageInspection(ITestOutputHelper outputHelper)
+    public Inspect(ITestOutputHelper outputHelper)
     {
       _outputHelper = outputHelper;
     }

@@ -1,17 +1,16 @@
 ﻿using System.Threading;
 using FluentAssertions;
-using Microsoft.Extensions.Logging;
 using pack_csharp;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace pack_csharp_tests
 {
-  public class Inspect
+  public class BillOfMaterials
   {
     private readonly ITestOutputHelper _outputHelper;
 
-    public Inspect(ITestOutputHelper outputHelper)
+    public BillOfMaterials(ITestOutputHelper outputHelper)
     {
       _outputHelper = outputHelper;
     }
@@ -23,10 +22,11 @@ namespace pack_csharp_tests
       var cts = new CancellationTokenSource();
 
       var pack = new Pack(cts.Token, logger);
-      var inspection = pack.Inspect("my-image");
+      var bom = pack.InspectBillOfMaterials("my-image");
 
-      inspection.Should().NotBeNull();
-      inspection.ImageName.Should().Be("my-image");
+      bom.Should().NotBeNull();
+      bom.Local.Should().Contain(q => q.Name == "dotnet-runtime");
+      bom.Local.Should().Contain(q => q.Name == "dotnet-aspnetcore");
     }
   }
 }

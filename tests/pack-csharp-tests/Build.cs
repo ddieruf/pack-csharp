@@ -1,29 +1,87 @@
-﻿using System.Threading;
-using FluentAssertions;
+﻿using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using pack_csharp;
+using pack_csharp.Util;
+using pack_csharp_tests.Util;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace pack_csharp_tests
 {
-  public class Version
+  public class Build
   {
-    private readonly ITestOutputHelper _outputHelper;
+    private readonly CancellationTokenSource _cts = new();
+    private readonly ILoggerFactory _loggerFactory;
+    private string _artifactPath;
 
-    public Version(ITestOutputHelper outputHelper)
+    public Build(ITestOutputHelper outputHelper)
     {
-      _outputHelper = outputHelper;
+      _loggerFactory = new LoggerFactory().AddXUnit(outputHelper, LogLevel.Trace);
+
+      Task.Run(async () => { _artifactPath = await Artifact.Create(_cts.Token); }).Wait();
     }
 
-    [Fact(DisplayName = "Get version success")]
-    public void GetVersion()
+    public static IEnumerable<object[]> BuildSenarios()
     {
-      var logger = _outputHelper.ToLogger<Pack>();
-      var cts = new CancellationTokenSource();
+      var imageName = "some-repo/my-image";
+      var builder = "paketobuildpacks/builder:base";
 
-      var pack = new Pack(cts.Token, logger);
-      var version = pack.Version();
-      version.Should().Be("0.19.0+git-360dbae.build-2550");
+      // No image name
+      yield return new object[]
+      {
+        string.Empty,
+        builder,
+        new PackBuildSpec(),
+        typeof(ArgumentException)
+      };
+
+      // No builder name
+      yield return new object[]
+      {
+        imageName,
+        string.Empty,
+        new PackBuildSpec(),
+        typeof(ArgumentException)
+      };
+
+      // Minimum values
+      yield return new object[]
+      {
+        imageName,
+        builder,
+        null,
+        null
+      };
+      // Minimum values
+      yield return new object[]
+      {
+        imageName,
+        builder,
+        new PackBuildSpec(Env: new SortedList<string, string> {{"ASPNET_ENVIRONMENT", "Staging"}}, Tags: new SortedSet<string> {"latest", "1234"}),
+        null
+      };
+    }
+
+    [Theory(DisplayName = "Build senarios")]
+    [MemberData(nameof(BuildSenarios))]
+    public async Task BuildValSenarios(string imageName, string builder, PackBuildSpec buildSpec, Type exceptionType)
+    {
+      var logger = _loggerFactory.CreateLogger<Pack>();
+
+      var pack = new Pack(_cts.Token, logger);
+
+      if (exceptionType is null)
+      {
+        var output = pack.Build(imageName, builder, _artifactPath, buildSpec);
+
+        logger.LogDebug(string.Join(Environment.NewLine, output));
+        return;
+      }
+
+      Assert.Throws(exceptionType, () => { pack.Build(imageName, builder, _artifactPath, buildSpec); });
     }
   }
 }

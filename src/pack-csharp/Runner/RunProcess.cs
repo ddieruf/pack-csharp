@@ -1,41 +1,40 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace Kpush.Sdks.Runner
+namespace pack_csharp.Runner
 {
-	public static class ProcessSpecExtensions
-	{
-		public static void Run(this ProcessSpec processSpec, ILogger logger, CancellationToken cancellationToken)
-		{
-			if (logger is null)
-				throw new ArgumentNullException(nameof(logger));
-			
-			if (processSpec is null)
-				throw new ArgumentNullException(nameof(processSpec));
+  public static class ProcessSpecExtensions
+  {
+    public static void Run(this ProcessSpec processSpec, ILogger logger, CancellationToken cancellationToken)
+    {
+      if (logger is null)
+        throw new ArgumentNullException(nameof(logger));
 
-			var processRunner = new ProcessRunner(logger);
-			var cancelledTaskSource = new TaskCompletionSource();
-			cancellationToken.Register(state => ((TaskCompletionSource) state).TrySetResult(), cancelledTaskSource);
+      if (processSpec is null)
+        throw new ArgumentNullException(nameof(processSpec));
 
-			var processTask = processRunner.RunAsync(processSpec, cancellationToken);
-			
-			//The process ran to completion and the result was not success
-			if (processTask.Result != 0 && !cancellationToken.IsCancellationRequested)
-			{
-				throw new Exception("Process exited with error");
-			}
+      var processRunner = new ProcessRunner(logger);
+      var cancelledTaskSource = new TaskCompletionSource<int>();
+      cancellationToken.Register(state => ((TaskCompletionSource<int>) state).TrySetCanceled(), cancelledTaskSource);
 
-			//The process was cancelled
-			if (cancellationToken.IsCancellationRequested)
-			{
-				logger.LogDebug("Process was cancelled");
-				throw new OperationCanceledException();
-			}
+      var processTask = processRunner.RunAsync(processSpec, cancellationToken);
 
-			//The process ran to completion and the result was success
-			logger.LogDebug("Process completed successfully");
-		}
-	}
+      //The process ran to completion and the result was not success
+      if (processTask.Result != 0 && !cancellationToken.IsCancellationRequested)
+        throw new ProcessException(string.Join(Environment.NewLine, processSpec.OutputCapture?.Lines ?? new List<string> {$"Process exited with result '{processTask.Result}'"}));
+
+      //The process was cancelled
+      if (cancellationToken.IsCancellationRequested)
+      {
+        logger.LogDebug("Process was cancelled");
+        throw new OperationCanceledException();
+      }
+
+      //The process ran to completion and the result was success
+      logger.LogDebug("Process completed successfully");
+    }
+  }
 }
