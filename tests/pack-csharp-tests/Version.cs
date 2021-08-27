@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using pack_csharp;
 using Xunit;
@@ -16,13 +17,13 @@ namespace pack_csharp_tests
     }
 
     [Fact(DisplayName = "Get version success")]
-    public void GetVersion()
+    public async Task GetVersion()
     {
       var logger = _outputHelper.ToLogger<Pack>();
       var cts = new CancellationTokenSource();
 
-      var pack = new Pack(cts.Token, logger);
-      var version = pack.Version();
+      var pack = new Pack(logger);
+      var version = await pack.Version(cts.Token);
       version.Should().Be("0.19.0+git-360dbae.build-2550");
     }
   }

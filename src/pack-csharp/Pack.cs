@@ -17,7 +17,6 @@ namespace pack_csharp
   /// </summary>
   public class Pack
   {
-    private readonly CancellationToken _cancellationToken;
     private readonly ILogger _log;
     private readonly bool _quiet;
     private readonly bool _timeStamps;
@@ -28,7 +27,6 @@ namespace pack_csharp
     /// <summary>
     ///   Generate app image from source code
     /// </summary>
-    /// <param name="cancellationToken"></param>
     /// <param name="log">A logger</param>
     /// <param name="quiet">Show less output</param>
     /// <param name="verbose">Show more output</param>
@@ -38,12 +36,11 @@ namespace pack_csharp
     ///   the operating system and written to
     ///   <see cref="Environment.CurrentDirectory" />. Make sure the context running this library has permission.
     /// </remarks>
-    public Pack(CancellationToken cancellationToken, ILogger log, bool quiet = false, bool verbose = false, bool timeStamps = false)
+    public Pack(ILogger log, bool quiet = false, bool verbose = false, bool timeStamps = false)
     {
       _quiet = quiet;
       _verbose = verbose;
       _timeStamps = timeStamps;
-      _cancellationToken = cancellationToken;
       _log = log;
 
       Task.Run(async () => { _packPath = await BuildVerifyPackCmd(); }).Wait();
@@ -55,22 +52,27 @@ namespace pack_csharp
     ///   Show current 'pack' version
     /// </summary>
     /// <returns>version</returns>
-    public string Version()
+    public Task<string> Version(CancellationToken cancellationToken = default)
     {
-      var outputCapture = new OutputCapture();
-      var processSpec = new ProcessSpec
+      return Task.Run(() =>
       {
-        EscapedArguments = PackFlags + " version",
-        CancelOutputCapture = _cancellationToken,
-        Executable = _packPath,
-        OutputCapture = outputCapture
-      };
+        var outputCapture = new OutputCapture();
+        var processSpec = new ProcessSpec
+        {
+          EscapedArguments = PackFlags + " version",
+          CancelOutputCapture = cancellationToken,
+          Executable = _packPath,
+          OutputCapture = outputCapture
+        };
 
-      processSpec.Run(_log, _cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
 
-      var lines = string.Join(" ", outputCapture.Lines);
+        processSpec.Run(_log, cancellationToken);
 
-      return lines;
+        var lines = string.Join(" ", outputCapture.Lines);
+
+        return lines;
+      }, cancellationToken);
     }
 
     /// <summary>
@@ -81,6 +83,7 @@ namespace pack_csharp
     /// <param name="path">Artifact folder</param>
     /// <param name="buildSpec">Optional values to use while building</param>
     /// <param name="dryRun">Output complete command but don't run process</param>
+    /// <param name="cancellationToken">The token</param>
     /// <exception cref="OperationCanceledException">The operation was cancelled by token</exception>
     /// <exception cref="ProcessException">The process returned a non-zero result (check command output for more info)</exception>
     /// <returns>The line-by-line output of the command</returns>
@@ -91,164 +94,179 @@ namespace pack_csharp
     ///   Build requires a builder, which can either be provided directly to build using 'builder'. For more on how to use pack
     ///   build, see: https://buildpacks.io/docs/app-developer-guide/build-an-app/.
     /// </remarks>
-    public IEnumerable<string> Build([NotNull] string imageName, [NotNull] string builder, [NotNull] string path, PackBuildSpec buildSpec = default, bool dryRun = false)
+    public Task<IEnumerable<string>> Build([NotNull] string imageName, [NotNull] string builder, [NotNull] string path, PackBuildSpec buildSpec = default, bool dryRun = false, CancellationToken cancellationToken = default)
     {
-      // Validate required arguments
-      Ensure.NotNullOrEmpty(imageName, nameof(imageName));
-      Ensure.NotNullOrEmpty(builder, nameof(builder));
-      Ensure.NotNullOrEmpty(path, nameof(path));
-
-      // Validate argument combinations
-      if (buildSpec?.Gid is < 0) throw new ArgumentException("gid value must be a positive integer");
-      if (!string.IsNullOrEmpty(buildSpec?.CacheImage) && buildSpec?.Publish == false) throw new ArgumentException("To 'cacheImage' you must set 'publish' to true ");
-      if (buildSpec?.Descriptor is {Exists: false}) throw new FileNotFoundException($"Description file could not be found at '{buildSpec.Descriptor.FullName}'");
-      if (buildSpec?.EnvFile is {Exists: false}) throw new FileNotFoundException($"EnvFile file could not be found at '{buildSpec.EnvFile.FullName}'");
-
-      // Initialize values
-      var outputCapture = new OutputCapture();
-
-      // Build command arguments
-      var argumentsList = new List<string>
+        return Task.Run(() =>
       {
-        "build",
-        $"\"{imageName}\"",
-        $"--builder \"{builder}\"",
-        $"--path \"{path}\""
-      };
+        // Validate required arguments
+        Ensure.NotNullOrEmpty(imageName, nameof(imageName));
+        Ensure.NotNullOrEmpty(builder, nameof(builder));
+        Ensure.NotNullOrEmpty(path, nameof(path));
 
-      if (buildSpec != null)
-        argumentsList.AddRange(buildSpec.ToArgumentList());
+        // Validate argument combinations
+        if (buildSpec?.Gid is < 0) throw new ArgumentException("gid value must be a positive integer");
+        if (!string.IsNullOrEmpty(buildSpec?.CacheImage) && buildSpec?.Publish == false) throw new ArgumentException("To 'cacheImage' you must set 'publish' to true ");
+        if (buildSpec?.Descriptor is {Exists: false}) throw new FileNotFoundException($"Description file could not be found at '{buildSpec.Descriptor.FullName}'");
+        if (buildSpec?.EnvFile is {Exists: false}) throw new FileNotFoundException($"EnvFile file could not be found at '{buildSpec.EnvFile.FullName}'");
 
-      var arguments = string.Join(" ", argumentsList);
+        cancellationToken.ThrowIfCancellationRequested();
 
-      var processEnvVariables = new Dictionary<string, string>
-      {
-        {"PACK_HOME", Path.Combine(path, "packHome")}
-      };
+        // Initialize values
+        var outputCapture = new OutputCapture();
 
-      var processSpec = new ProcessSpec
-      {
-        EscapedArguments = arguments,
-        EnvironmentVariables = processEnvVariables,
-        CancelOutputCapture = _cancellationToken,
-        Executable = _packPath,
-        WorkingDirectory = Environment.CurrentDirectory,
-        OutputCapture = outputCapture
-      };
+        // Build command arguments
+        var argumentsList = new List<string>
+        {
+          "build",
+          $"\"{imageName}\"",
+          $"--builder \"{builder}\"",
+          $"--path \"{path}\""
+        };
 
-      if (dryRun)
-        return new[] {string.Format($"{processSpec.Executable} {processSpec.EscapedArguments}")};
+        if (buildSpec != null)
+          argumentsList.AddRange(buildSpec.ToArgumentList());
 
-      try
-      {
-        processSpec.Run(_log, _cancellationToken);
-      }
-      catch (OperationCanceledException)
-      {
-        throw;
-      }
-      catch (ProcessException)
-      {
-        throw;
-      }
-      catch (Exception ex)
-      {
-        _log.LogError(ex, "An exception occurred while processing command");
-        throw;
-      }
+        var arguments = string.Join(" ", argumentsList);
 
-      return outputCapture.Lines;
+        var processEnvVariables = new Dictionary<string, string>
+        {
+          {"PACK_HOME", Path.Combine(path, "packHome")}
+        };
+
+        var processSpec = new ProcessSpec
+        {
+          EscapedArguments = arguments,
+          EnvironmentVariables = processEnvVariables,
+          CancelOutputCapture = cancellationToken,
+          Executable = _packPath,
+          WorkingDirectory = Environment.CurrentDirectory,
+          OutputCapture = outputCapture
+        };
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (dryRun)
+          return new[] {string.Format($"{processSpec.Executable} {processSpec.EscapedArguments}")};
+
+        try
+        {
+          processSpec.Run(_log, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+          throw;
+        }
+        catch (ProcessException)
+        {
+          throw;
+        }
+        catch (Exception ex)
+        {
+          _log.LogError(ex, "An exception occurred while processing command");
+          throw;
+        }
+
+        return outputCapture.Lines;
+      }, cancellationToken);
     }
 
     /// <summary>
     ///   Get information about a built app image
     /// </summary>
     /// <param name="imageName">The image name</param>
+    /// <param name="cancellationToken">The token</param>
     /// <returns>the built app info</returns>
-    public ImageInspection Inspect([NotNull] string imageName)
+    public Task<ImageInspection> Inspect([NotNull] string imageName, CancellationToken cancellationToken = default)
     {
-      // Validate required arguments
-      Ensure.NotNullOrEmpty(imageName, nameof(imageName));
+      return Task.Run(() =>
+      {
+        // Validate required arguments
+        Ensure.NotNullOrEmpty(imageName, nameof(imageName));
 
-      var outputCapture = new OutputCapture();
-      var processSpec = new ProcessSpec
-      {
-        EscapedArguments = $"inspect \"{imageName}\" -o json",
-        CancelOutputCapture = _cancellationToken,
-        Executable = _packPath,
-        WorkingDirectory = Environment.CurrentDirectory,
-        OutputCapture = outputCapture
-      };
+        var outputCapture = new OutputCapture();
+        var processSpec = new ProcessSpec
+        {
+          EscapedArguments = $"inspect \"{imageName}\" -o json",
+          CancelOutputCapture = cancellationToken,
+          Executable = _packPath,
+          WorkingDirectory = Environment.CurrentDirectory,
+          OutputCapture = outputCapture
+        };
 
-      try
-      {
-        processSpec.Run(_log, _cancellationToken);
-      }
-      catch (OperationCanceledException)
-      {
-        throw;
-      }
-      catch (ProcessException)
-      {
-        throw;
-      }
-      catch (Exception ex)
-      {
-        _log.LogError(ex, "An exception occurred while processing command");
-        throw;
-      }
+        try
+        {
+          processSpec.Run(_log, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+          throw;
+        }
+        catch (ProcessException)
+        {
+          throw;
+        }
+        catch (Exception ex)
+        {
+          _log.LogError(ex, "An exception occurred while processing command");
+          throw;
+        }
 
-      //Convert the output to a safe json string
-      var json = string.Join("", outputCapture.Lines);
+        //Convert the output to a safe json string
+        var json = string.Join("", outputCapture.Lines);
 
-      return ImageInspection.FromJson(json);
+        return ImageInspection.FromJson(json);
+      }, cancellationToken);
     }
 
     /// <summary>
     ///   Get bill of materials about a built app image
     /// </summary>
     /// <param name="imageName">The image name</param>
+    /// <param name="cancellationToken">The token</param>
     /// <returns>the built app bill of materials</returns>
-    public BillOfMaterials InspectBillOfMaterials(string imageName)
+    public Task<BillOfMaterials> InspectBillOfMaterials(string imageName, CancellationToken cancellationToken = default)
     {
-      // Validate required arguments
-      Ensure.NotNullOrEmpty(imageName, nameof(imageName));
+      return Task.Run(() =>
+      {
+        // Validate required arguments
+        Ensure.NotNullOrEmpty(imageName, nameof(imageName));
 
-      var outputCapture = new OutputCapture();
-      var processSpec = new ProcessSpec
-      {
-        EscapedArguments = $"inspect \"{imageName}\" --bom -o json",
-        CancelOutputCapture = _cancellationToken,
-        Executable = _packPath,
-        WorkingDirectory = Environment.CurrentDirectory,
-        OutputCapture = outputCapture
-      };
+        var outputCapture = new OutputCapture();
+        var processSpec = new ProcessSpec
+        {
+          EscapedArguments = $"inspect \"{imageName}\" --bom -o json",
+          CancelOutputCapture = cancellationToken,
+          Executable = _packPath,
+          WorkingDirectory = Environment.CurrentDirectory,
+          OutputCapture = outputCapture
+        };
 
-      try
-      {
-        processSpec.Run(_log, _cancellationToken);
-      }
-      catch (OperationCanceledException)
-      {
-        throw;
-      }
-      catch (ProcessException)
-      {
-        throw;
-      }
-      catch (Exception ex)
-      {
-        _log.LogError(ex, "An exception occurred while processing command");
-        throw;
-      }
+        try
+        {
+          processSpec.Run(_log, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+          throw;
+        }
+        catch (ProcessException)
+        {
+          throw;
+        }
+        catch (Exception ex)
+        {
+          _log.LogError(ex, "An exception occurred while processing command");
+          throw;
+        }
 
-      //Convert the output to a safe json string
-      var json = string.Join("", outputCapture.Lines);
+        //Convert the output to a safe json string
+        var json = string.Join("", outputCapture.Lines);
 
-      return BillOfMaterials.FromJson(json);
+        return BillOfMaterials.FromJson(json);
+      }, cancellationToken);
     }
 
-    private async Task<string> BuildVerifyPackCmd()
+    private async Task<string> BuildVerifyPackCmd(CancellationToken cancellationToken = default)
     {
       var resourceManifestName = "pack_csharp.Assets.pack_v0._19._0_linux.pack";
       var cmdPath = Path.Combine(Environment.CurrentDirectory, "pack");
@@ -281,8 +299,8 @@ namespace pack_csharp
         if (stream is null)
           throw new Exception("Could not find resource stream");
 
-        await stream.CopyToAsync(file, _cancellationToken);
-        await file.FlushAsync(_cancellationToken);
+        await stream.CopyToAsync(file, cancellationToken);
+        await file.FlushAsync(cancellationToken);
         await file.DisposeAsync();
       }
       catch (UnauthorizedAccessException ua)

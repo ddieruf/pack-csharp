@@ -12,27 +12,26 @@ using a runner. The output is fed back as a collection of lines for logging.
 
 Add the nuget distributed package to your project.
 
-```powershell
+```bash
 dotnet add package pack-csharp
 ```
 
 Initialize the constructor
 
-```csharp
+```c#
 using pack-csharp
 
 var logger = new LoggerFactory().CreateLogger<Pack>();
-var cts = new CancellationTokenSource();
 const bool quiet = false;
 const bool verbose = true;
 const bool timeStamps = true;
 
-var pack = new Pack(cts.Token, logger, quiet, verbose, timeStamps);
+var pack = new Pack(logger, quiet, verbose, timeStamps);
 ```
 
 Create an artifact to be containerized
 
-```powershell
+```bash
 dotnet publish my-project -o "c:\pub"
 
 # optionally you could zip it up and provide the full path to zip
@@ -43,15 +42,16 @@ dotnet publish my-project -o "c:\pub"
 
 Build the container image
 
-```csharp
-var output = pack.Build("some-repo/my-image", "paketobuildpacks/builder:base", "c:\pub");
+```c#
+var cts = new CancellationTokenSource();
+var output = await pack.Build("some-repo/my-image", "paketobuildpacks/builder:base", "c:\pub", cts.Token);
 logger.LogInformation(string.Join(Environment.NewLine, output));
 ```
 
 Inspect the resulting image
 
-```csharp
-var inspection = pack.Inspect("some-repo/my-image");
+```c
+var inspection = await pack.Inspect("some-repo/my-image");
 logger.LogInformation(inspection));
 ```
 

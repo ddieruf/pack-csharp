@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using pack_csharp;
 using Xunit;
@@ -16,13 +17,13 @@ namespace pack_csharp_tests
     }
 
     [Fact(DisplayName = "Get image inspection success")]
-    public void GetImageInspection()
+    public async Task GetImageInspection()
     {
       var logger = _outputHelper.ToLogger<Pack>();
       var cts = new CancellationTokenSource();
 
-      var pack = new Pack(cts.Token, logger);
-      var inspection = pack.Inspect("my-image");
+      var pack = new Pack(logger);
+      var inspection = await pack.Inspect("my-image", cts.Token);
 
       inspection.Should().NotBeNull();
       inspection.ImageName.Should().Be("my-image");

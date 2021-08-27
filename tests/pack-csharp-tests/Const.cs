@@ -19,9 +19,8 @@ namespace pack_csharp_tests
     public void CreateConst()
     {
       var logger = _outputHelper.ToLogger<Pack>();
-      var cts = new CancellationTokenSource();
 
-      var pack = new Pack(cts.Token, logger);
+      var pack = new Pack(logger);
       pack.Should().NotBeNull();
     }
 
@@ -29,12 +28,11 @@ namespace pack_csharp_tests
     public void CreateConstFull()
     {
       var logger = _outputHelper.ToLogger<Pack>();
-      var cts = new CancellationTokenSource();
       const bool quiet = false;
       const bool verbose = true;
       const bool timeStamps = true;
 
-      var pack = new Pack(cts.Token, logger, quiet, verbose, timeStamps);
+      var pack = new Pack(logger, quiet, verbose, timeStamps);
       pack.Should().NotBeNull();
     }
   }

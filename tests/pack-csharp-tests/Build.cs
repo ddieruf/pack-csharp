@@ -70,18 +70,20 @@ namespace pack_csharp_tests
     public async Task BuildValSenarios(string imageName, string builder, PackBuildSpec buildSpec, Type exceptionType)
     {
       var logger = _loggerFactory.CreateLogger<Pack>();
+      var cts = new CancellationTokenSource();
 
-      var pack = new Pack(_cts.Token, logger);
+      var pack = new Pack(logger);
 
-      if (exceptionType is null)
+      try
       {
-        var output = pack.Build(imageName, builder, _artifactPath, buildSpec);
-
+        var output = await pack.Build(imageName, builder, _artifactPath, buildSpec, cancellationToken: cts.Token);
         logger.LogDebug(string.Join(Environment.NewLine, output));
-        return;
       }
-
-      Assert.Throws(exceptionType, () => { pack.Build(imageName, builder, _artifactPath, buildSpec); });
+      catch (Exception ex)
+      {
+        if (exceptionType == null) throw;
+        Assert.IsType(exceptionType, ex);
+      }
     }
   }
 }

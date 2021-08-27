@@ -1,4 +1,5 @@
 ﻿using System.Threading;
+using System.Threading.Tasks;
 using FluentAssertions;
 using pack_csharp;
 using Xunit;
@@ -15,14 +16,14 @@ namespace pack_csharp_tests
       _outputHelper = outputHelper;
     }
 
-    [Fact(DisplayName = "Get image inspection success")]
-    public void GetImageInspection()
+    [Fact(DisplayName = "Get BOM success")]
+    public async Task GetImageInspection()
     {
       var logger = _outputHelper.ToLogger<Pack>();
       var cts = new CancellationTokenSource();
 
-      var pack = new Pack(cts.Token, logger);
-      var bom = pack.InspectBillOfMaterials("my-image");
+      var pack = new Pack(logger);
+      var bom = await pack.InspectBillOfMaterials("my-image", cts.Token);
 
       bom.Should().NotBeNull();
       bom.Local.Should().Contain(q => q.Name == "dotnet-runtime");
